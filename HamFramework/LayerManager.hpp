@@ -367,9 +367,9 @@ namespace ham
 
 			newLayer->setTransitionValue(transitionTimeMillisec);
 
-			newLayer->init();
-
 			m_tLayers.push_back(newLayer);
+
+			newLayer->init();
 
 			return true;
 		}
