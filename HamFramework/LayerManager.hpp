@@ -95,11 +95,11 @@ namespace ham
 
 		virtual void updateFadeIn(double) {}
 
-		virtual void update() = 0;
+		virtual void update() {};
 
 		virtual void updateFadeOut(double) {}
 
-		virtual void draw() const = 0;
+		virtual void draw() const {};
 
 		virtual void drawFadeIn(double) const
 		{
