@@ -1,2 +1,2 @@
 # HamFramework
-This is library for Siv3D.
+Utility libraries for Siv3D.
