@@ -68,7 +68,7 @@ namespace ham
 		/// <returns>
 		/// なし
 		/// </returns>
-		virtual void update() = 0;
+		virtual void update() {};
 
 		/// <summary>
 		/// フェードアウト時の更新
@@ -84,7 +84,7 @@ namespace ham
 		/// <returns>
 		/// なし
 		/// </returns>
-		virtual void draw() const = 0;
+		virtual void draw() const {};
 
 		/// <summary>
 		/// フェードイン時の描画
