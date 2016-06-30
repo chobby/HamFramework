@@ -27,6 +27,27 @@ namespace ham
 	}
 
 	class Box2DBody;
+	class Box2DLine;
+	class Box2DCircle;
+
+	using PBody = std::shared_ptr<Box2DBody>;
+
+	struct Box2DStatus
+	{
+		double density = 1.0;
+
+		double restitution = 0.0;
+
+		double friction = 0.2;
+
+		Box2DStatus(double _density = 1.0, double _restitution = 0.1, double _friction = 0.2)
+			: density(_density)
+			, restitution(_restitution)
+			, friction(_friction)
+		{
+
+		}
+	};
 
 	class Box2DShape
 	{
@@ -140,8 +161,13 @@ namespace ham
 			m_initialBodyStatus = std::make_shared<Box2DInitialBodyStatus>();
 		}
 
-		void init()
+		void init(b2BodyType bodyType, const Vec2& center = Vec2(0, 0))
 		{
+			auto initialStatus = std::make_shared<Box2DInitialBodyStatus>();
+			initialStatus->setPos(center);
+			initialStatus->setBodyType(bodyType);
+			m_initialBodyStatus = initialStatus;
+
 			myPtr = shared_from_this();
 
 			createBody();
@@ -170,6 +196,12 @@ namespace ham
 		{
 			m_fixtureDefinitions.push_back(shape);
 		}
+
+		void setShape(const Line& line, const Box2DStatus& status = Box2DStatus());
+
+		void setShape(const RectF& rect, const Box2DStatus& status = Box2DStatus());
+
+		void setShape(const Circle& circle, const Box2DStatus& status = Box2DStatus());
 
 		void setTransform(const Vec2& position, double angle)
 		{
@@ -349,13 +381,25 @@ namespace ham
 			RectF(width, height).setCenter(pos).rotated(angle).draw(m_color);
 		}
 
-		void setSize(const Vec2& size)
+		//void setSize(const Vec2& size)
+		//{
+		//	width = static_cast<float32>(size.x);
+
+		//	height = static_cast<float32>(size.y);
+
+		//	m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f);			
+		//}
+
+		//void setPosition(const Vec2& center)
+		//{
+		//	//m_polygonShape
+		//}
+
+		void setRect(const RectF& rect)
 		{
-			width = static_cast<float32>(size.x);
-
-			height = static_cast<float32>(size.y);
-
-			m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f);			
+			width = static_cast<float32>(rect.w);
+			height = static_cast<float32>(rect.h);
+			m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f, Vec2ToB2Vec2(rect.center), 0.0f);
 		}
 
 	private:
@@ -393,6 +437,13 @@ namespace ham
 			m_circleShape.m_radius = static_cast<float32>(radius);
 
 			m_circle.r = radius;
+		}
+
+		void setPosition(const Vec2& pos)
+		{
+			m_circleShape.m_p = Vec2ToB2Vec2(pos);
+
+			m_circle.center = pos;
 		}
 
 	private:
@@ -743,11 +794,11 @@ namespace ham
 
 		using WorldPtr = std::shared_ptr<b2World>;
 
-		Box2DManager()
+		Box2DManager(const Vec2& gravity = Vec2(0.0, -9.8), int32 velocityIterations = 6, int32 positionIterations = 2)
+			: m_velocityIterations(velocityIterations)
+			, m_positionIterations(positionIterations)
 		{
-			b2Vec2 gravity(0.0f, -10.0f);
-
-			m_world = std::make_shared<b2World>(gravity);
+			m_world = std::make_shared<b2World>(Vec2ToB2Vec2(gravity));
 		}
 
 		virtual ~Box2DManager()
@@ -755,9 +806,9 @@ namespace ham
 
 		}
 
-		void update()
+		void update(double timeStep = 1.0/60.0)
 		{
-			m_world->Step(m_timeStep, m_velocityIterations, m_positionIterations);
+			m_world->Step(static_cast<float32>(timeStep), m_velocityIterations, m_positionIterations);
 		}
 
 		const WorldPtr& getWorld() const
@@ -765,15 +816,110 @@ namespace ham
 			return m_world;
 		}
 
+		std::shared_ptr<Box2DBody> createBody()
+		{
+			return std::make_shared<Box2DBody>(m_world);
+		}
+
 	private:
 
 		WorldPtr m_world;
 
-		float32 m_timeStep = 1.0f / 60.0f;
-
 		int32 m_velocityIterations = 6;
 
 		int32 m_positionIterations = 2;
-
 	};
+
+
+	void Box2DBody::setShape(const Line& line, const Box2DStatus& status)
+	{
+		auto shape = std::make_shared<Box2DLine>();
+		shape->setLine(line);
+		shape->setDensity(status.density);
+		shape->setRestitution(status.restitution);
+		shape->setFriction(status.friction);
+
+		m_fixtureDefinitions.push_back(shape);
+	}
+
+	void Box2DBody::setShape(const RectF& rect, const Box2DStatus& status)
+	{
+		auto shape = std::make_shared<Box2DRect>();
+		shape->setRect(rect);
+		shape->setDensity(status.density);
+		shape->setRestitution(status.restitution);
+		shape->setFriction(status.friction);
+
+		m_fixtureDefinitions.push_back(shape);
+	}
+
+	void Box2DBody::setShape(const Circle& circle, const Box2DStatus& status)
+	{
+		auto shape = std::make_shared<Box2DCircle>();
+		shape->setRadius(circle.r);
+		shape->setPosition(circle.center);
+		shape->setDensity(status.density);
+		shape->setRestitution(status.restitution);
+		shape->setFriction(status.friction);
+
+		m_fixtureDefinitions.push_back(shape);
+	}
 }
+
+
+/*
+void Main()
+{
+	Window::SetStyle(WindowStyle::Sizeable);
+	Box2DManager box2DManager;
+
+	auto ground = box2DManager.createBody();
+	ground->setShape(Line(-45, 2, -35, 0), Box2DStatus(0, 0.1, 0.9));
+	ground->setShape(Line(-100, 0, 100, -20));
+	ground->init(b2_staticBody);
+
+	Array<PBody> objects;
+
+	for (auto i : step(1000))
+	{
+		auto ball = box2DManager.createBody();
+		ball->setShape(RectF(1, 0.5).setCenter(0, 0));
+		ball->init(b2_dynamicBody, Vec2(-40, 5 + i));
+		objects.push_back(ball);
+	}
+
+	CameraManager2D camera;
+	auto cameraController = std::make_shared<ExampleCameraControllerForBox2D>();
+	camera.setCameraController(cameraController);
+	camera.getCameraController()->setPos(Vec2(0.0, 0.0));
+	camera.getCameraController()->setScale(17.0);
+	camera.init();
+
+	SizableWindowmanager2D sizable;
+
+	while (System::Update())
+	{
+		//cameraController->setTargetPos(B2Vec2ToVec2(car->getBodyPtr()->GetPosition()));
+		box2DManager.update();
+
+		camera.update();
+
+		ClearPrint();
+		camera.draw();
+
+		sizable.begin();
+		camera.begin(); 
+
+		ground->draw();
+		//ball->draw();
+
+		for (const auto& object : objects)
+		{
+			object->draw();
+		}
+
+		camera.end();
+		sizable.end();
+	}
+}
+*/
