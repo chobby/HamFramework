@@ -36,6 +36,7 @@ namespace ham
 
 		double friction = 0.2;
 
+
 		constexpr Box2DStatus(double _density = 1.0, double _restitution = 0.1, double _friction = 0.2)
 			: density(_density)
 			, restitution(_restitution)
@@ -125,6 +126,11 @@ namespace ham
 			m_bodyDef.bullet = bullet;
 		}
 
+		void setFixedRotation(bool flag)
+		{
+			m_bodyDef.fixedRotation = flag;
+		}
+
 		const b2BodyDef& getBodyDefinition() const
 		{
 			return m_bodyDef;
@@ -145,11 +151,12 @@ namespace ham
 			: m_world(world)
 			, m_initialBodyStatus(std::make_shared<Box2DInitialBodyStatus>()) {}
 
-		void init(b2BodyType bodyType, const Vec2& center = Vec2(0, 0))
+		void init(b2BodyType bodyType, const Vec2& center = Vec2(0, 0), bool fixedRotation = false)
 		{
 			auto initialStatus = std::make_shared<Box2DInitialBodyStatus>();
 			initialStatus->setPos(center);
 			initialStatus->setBodyType(bodyType);
+			initialStatus->setFixedRotation(fixedRotation);
 			m_initialBodyStatus = initialStatus;
 
 			myPtr = shared_from_this();
@@ -218,9 +225,14 @@ namespace ham
 			setTransform(pos.x, pos.y, angle);
 		}
 
-		void setAwake(const bool awake)
+		void setAwake(bool awake)
 		{
 			m_body->SetAwake(awake);
+		}
+
+		void setFixedRotation(bool flag)
+		{
+			m_body->SetFixedRotation(flag);
 		}
 
 		const InitialBodyStatusPtr& getInitialBodyStatusPtr() const
@@ -698,6 +710,13 @@ namespace ham
 			m_revoluteJoint = static_cast<RevoluteJointPtr>(m_world.lock()->CreateJoint(&m_initialRevoluteJointStatus->getRevoluteJointDefinition()));
 		}
 
+		void init(const InitialRevoluteJointStatusPtr& initialRevoluteJointStatus)
+		{
+			setInitialRevoluteJointStatus(initialRevoluteJointStatus);
+
+			init();
+		}
+
 	private:
 
 		WorldWeakPtr m_world;
@@ -787,6 +806,21 @@ namespace ham
 	{
 	public:
 
+		void init(const std::shared_ptr<Box2DBody>& bodyA, const std::shared_ptr<Box2DBody>& bodyB, const Vec2& anchor, const Vec2& axis)
+		{
+			m_prismaticJointDef.Initialize(bodyA->getBodyPtr(), bodyB->getBodyPtr(), ToB2Vec2(anchor), ToB2Vec2(axis));
+		}
+
+		void setMaxMotorForce(double maxMotorForce)
+		{
+			m_prismaticJointDef.maxMotorForce = static_cast<float32>(maxMotorForce);
+		}
+
+		void enableMotor(bool flag)
+		{
+			m_prismaticJointDef.enableMotor = flag;
+		}
+
 		const b2PrismaticJointDef& getPrismaticJointDef() const
 		{
 			return m_prismaticJointDef;
@@ -794,9 +828,7 @@ namespace ham
 
 	private:
 		
-
 		b2PrismaticJointDef m_prismaticJointDef;
-		
 
 	};
 
@@ -815,9 +847,21 @@ namespace ham
 
 		}
 
+		void setInitialPrismaticJointStatus(const std::shared_ptr<Box2DInitialPrismaticJointStatus>& initialPrismaticJointStatus)
+		{
+			m_initialPrismaticJointDef = initialPrismaticJointStatus;
+		}
+
 		void init()
 		{
-			m_prismaticJoint = static_cast<b2PrismaticJoint*>(m_world.lock()->CreateJoint(&m_initialDistanceJointDef->getPrismaticJointDef()));
+			m_prismaticJoint = static_cast<b2PrismaticJoint*>(m_world.lock()->CreateJoint(&m_initialPrismaticJointDef->getPrismaticJointDef()));
+		}
+
+		void init(const std::shared_ptr<Box2DInitialPrismaticJointStatus>& initialPrismaticJointStatus)
+		{
+			setInitialPrismaticJointStatus(initialPrismaticJointStatus);
+			
+			init();
 		}
 
 		void draw()
@@ -827,7 +871,7 @@ namespace ham
 
 	private:
 
-		std::shared_ptr<Box2DInitialPrismaticJointStatus> m_initialDistanceJointDef;
+		std::shared_ptr<Box2DInitialPrismaticJointStatus> m_initialPrismaticJointDef;
 
 		std::weak_ptr<b2World> m_world;
 
@@ -871,6 +915,16 @@ namespace ham
 		std::shared_ptr<Box2DDistanceJoint> createDistanceJoint() const
 		{
 			return std::make_shared<Box2DDistanceJoint>(m_world);
+		}
+
+		std::shared_ptr<Box2DRevoluteJoint> createRevoluteJoint() const
+		{
+			return std::make_shared<Box2DRevoluteJoint>(m_world);
+		}
+
+		std::shared_ptr<Box2DPrismaticJoint> createPrismaticJoint() const
+		{
+			return std::make_shared<Box2DPrismaticJoint>(m_world);
 		}
 	};
 

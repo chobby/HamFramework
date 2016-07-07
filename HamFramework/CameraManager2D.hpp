@@ -97,6 +97,10 @@ namespace ham
 			
 		}
 
+		virtual ~ExampleCameraController2D()
+		{
+
+		}
 
 		void init() override
 		{
@@ -260,6 +264,18 @@ namespace ham
 	class ExampleCameraControllerForBox2D : public ExampleCameraController2D
 	{
 	public:
+
+		ExampleCameraControllerForBox2D()
+			: ExampleCameraController2D()
+		{
+			m_pos = Vec2(0.0, 10.0);
+			m_scale = 10;
+		}
+
+		virtual ~ExampleCameraControllerForBox2D()
+		{
+
+		}
 
 		Mat3x2 generateCameraMatrix(const Vec2& pos, const Vec2& windowSize, double scale) const override
 		{
