@@ -10,26 +10,22 @@
 //-----------------------------------------------
 
 # pragma once
-
 # include <Siv3D.hpp>
 # include <Siv3DAddon\Box2D.hpp>
 
 namespace ham
 {
-	Vec2 B2Vec2ToVec2(const b2Vec2& b2Vec2)
+	constexpr Vec2 ToVec2(const b2Vec2& b2Vec2)
 	{
-		return Vec2(b2Vec2.x, b2Vec2.y);
+		return{ b2Vec2.x, b2Vec2.y };
 	}
 
-	b2Vec2 Vec2ToB2Vec2(const Vec2& vec2)
+	b2Vec2 ToB2Vec2(const Vec2& vec2)
 	{
-		return b2Vec2(static_cast<float32>(vec2.x), static_cast<float32>(vec2.y));
+		return{ static_cast<float32>(vec2.x), static_cast<float32>(vec2.y) };
 	}
 
 	class Box2DBody;
-	class Box2DLine;
-	class Box2DCircle;
-
 	using PBody = std::shared_ptr<Box2DBody>;
 
 	struct Box2DStatus
@@ -40,27 +36,28 @@ namespace ham
 
 		double friction = 0.2;
 
-		Box2DStatus(double _density = 1.0, double _restitution = 0.1, double _friction = 0.2)
+		constexpr Box2DStatus(double _density = 1.0, double _restitution = 0.1, double _friction = 0.2)
 			: density(_density)
 			, restitution(_restitution)
-			, friction(_friction)
-		{
-
-		}
+			, friction(_friction) {}
 	};
 
 	class Box2DShape
 	{
+	protected:
+
+		b2FixtureDef m_fixtureDef;
+
+		Color m_color = Palette::White;
+
 	public:
 
 		using Box2DBodyPtr = std::weak_ptr<Box2DBody>;
 
-		Box2DShape()
+		Box2DShape(const b2Shape* shape)
 		{
-
+			m_fixtureDef.shape = shape;
 		}
-
-		using FixtureDefinition = b2FixtureDef;
 
 		void setDensity(double density)
 		{
@@ -77,7 +74,7 @@ namespace ham
 			m_fixtureDef.restitution = static_cast<float32>(restitution);
 		}
 
-		const FixtureDefinition& getFixtureDef() const
+		const b2FixtureDef& getFixtureDef() const
 		{
 			return m_fixtureDef;
 		}
@@ -87,26 +84,21 @@ namespace ham
 			m_color = color;
 		}
 
-		void setFilterGroupIndex(int groupIndex)
+		void setFilterGroupIndex(const int16 groupIndex)
 		{
 			m_fixtureDef.filter.groupIndex = static_cast<int16>(groupIndex);
 		}
 
 		virtual void draw(const Box2DBodyPtr& body) const = 0;
-
-	protected:
-
-		FixtureDefinition m_fixtureDef;
-
-		Color m_color = Palette::White;
-
 	};
 
 	class Box2DInitialBodyStatus
 	{
-	public:
+	private:
 
-		using BodyDefinition = b2BodyDef;
+		b2BodyDef m_bodyDef;
+
+	public:
 
 		void setBodyType(b2BodyType type)
 		{
@@ -115,7 +107,7 @@ namespace ham
 
 		virtual void setPos(const Vec2& pos)
 		{
-			m_bodyDef.position = Vec2ToB2Vec2(pos);
+			m_bodyDef.position = ToB2Vec2(pos);
 		}
 
 		void setAngularDamping(double anglarDamping)
@@ -123,27 +115,21 @@ namespace ham
 			m_bodyDef.angularDamping = static_cast<float32>(anglarDamping);
 		}
 
-		const BodyDefinition& getBodyDefinition() const
-		{
-			return m_bodyDef;
-		}
-
-		void setAngle(double angle)
+		void setAngle(const double angle)
 		{
 			m_bodyDef.angle = static_cast<float32>(angle);
 		}
 
-		void setBullet(bool flag)
+		void setBullet(const bool bullet)
 		{
-			m_bodyDef.bullet = flag;
+			m_bodyDef.bullet = bullet;
 		}
 
-	private:
-
-		BodyDefinition m_bodyDef;
-
+		const b2BodyDef& getBodyDefinition() const
+		{
+			return m_bodyDef;
+		}
 	};
-
 
 	class Box2DBody : public std::enable_shared_from_this<Box2DBody>
 	{
@@ -153,13 +139,11 @@ namespace ham
 		using BodyPtr = b2Body*;
 		using InitialBodyStatusPtr = std::shared_ptr<Box2DInitialBodyStatus>;
 		using ShapePtr = std::shared_ptr<Box2DShape>;
-		using Box2DBodyPtr = std::shared_ptr<Box2DBody>;
+		using Box2DBodyPtr = std::weak_ptr<Box2DBody>;
 
 		Box2DBody(const WorldWeakPtr& world)
 			: m_world(world)
-		{
-			m_initialBodyStatus = std::make_shared<Box2DInitialBodyStatus>();
-		}
+			, m_initialBodyStatus(std::make_shared<Box2DInitialBodyStatus>()) {}
 
 		void init(b2BodyType bodyType, const Vec2& center = Vec2(0, 0))
 		{
@@ -175,8 +159,10 @@ namespace ham
 
 		virtual ~Box2DBody()
 		{
-			if(!m_world.expired())
+			if (!m_world.expired())
+			{
 				m_world.lock()->DestroyBody(m_body);
+			}
 		}
 
 		const BodyPtr& getBodyPtr() const
@@ -199,16 +185,40 @@ namespace ham
 
 		void setShape(const Line& line, const Box2DStatus& status = Box2DStatus());
 
+		void setShape(const LineString& line, const Box2DStatus& status = Box2DStatus());
+
 		void setShape(const RectF& rect, const Box2DStatus& status = Box2DStatus());
 
 		void setShape(const Circle& circle, const Box2DStatus& status = Box2DStatus());
 
-		void setTransform(const Vec2& position, double angle)
+		void setShape(const Polygon& polygon, const Box2DStatus& status = Box2DStatus());
+
+		void setPos(const double x, const double y)
 		{
-			m_body->SetTransform(Vec2ToB2Vec2(position), static_cast<float32>(angle));
+			m_body->SetTransform(b2Vec2(static_cast<float32>(x), static_cast<float32>(y)), m_body->GetAngle());
 		}
 
-		void setAwake(bool awake)
+		void setPos(const Vec2& pos)
+		{
+			setPos(pos.x, pos.y);
+		}
+
+		void setAngle(const double angle)
+		{
+			m_body->SetTransform(m_body->GetPosition(), static_cast<float32>(angle));
+		}
+
+		void setTransform(const double x, const double y, const double angle)
+		{
+			m_body->SetTransform(b2Vec2(static_cast<float32>(x), static_cast<float32>(y)), static_cast<float32>(angle));
+		}
+
+		void setTransform(const Vec2& pos, const double angle)
+		{
+			setTransform(pos.x, pos.y, angle);
+		}
+
+		void setAwake(const bool awake)
 		{
 			m_body->SetAwake(awake);
 		}
@@ -223,9 +233,17 @@ namespace ham
 			m_initialBodyStatus = initialBodyStatus;
 		}
 
+		Vec2 getPos() const
+		{
+			return ToVec2(m_body->GetPosition());
+		}
 
+		double getAngle() const
+		{
+			return static_cast<double>(m_body->GetAngle());
+		}
 
-	protected:		
+	protected:
 
 		virtual void createBody()
 		{
@@ -234,7 +252,7 @@ namespace ham
 			for (const auto& fixtureDef : m_fixtureDefinitions)
 			{
 				m_body->CreateFixture(&fixtureDef->getFixtureDef());
-			}				
+			}
 		}
 
 		Box2DBodyPtr myPtr;
@@ -246,66 +264,56 @@ namespace ham
 		InitialBodyStatusPtr m_initialBodyStatus;
 
 		Array<ShapePtr> m_fixtureDefinitions;
-
 	};
 
 	class Box2DLine : public Box2DShape
 	{
+	private:
+
+		b2EdgeShape m_edgeShape;
+
+		Line m_line;
+
 	public:
 
 		Box2DLine()
-			: Box2DShape()
-		{
-			m_fixtureDef.shape = &m_edgeShape;
-		}
-
-		using EdgeShape = b2EdgeShape;
-
-		void draw(const Box2DBodyPtr& body) const override
-		{
-			const double angle = body.lock()->getBodyPtr()->GetAngle();
-			const Vec2 pos = B2Vec2ToVec2(body.lock()->getBodyPtr()->GetPosition());
-
-			const Vec2 start = pos + m_line.begin.rotated(angle);
-			const Vec2 end = pos + m_line.end.rotated(angle);
-
-			Line(start, end).draw(0.1, m_color);
-		}
+			: Box2DShape(&m_edgeShape) {}
 
 		void setLine(const Line& line)
 		{
-			const b2Vec2 start = Vec2ToB2Vec2(line.begin);
-			const b2Vec2 end = Vec2ToB2Vec2(line.end);
-
-			m_edgeShape.Set(start, end);
+			m_edgeShape.Set(ToB2Vec2(line.begin), ToB2Vec2(line.end));
 
 			m_line = line;
 		}
 
-	private:
+		void draw(const Box2DBodyPtr& body) const override
+		{
+			const double angle = body.lock()->getBodyPtr()->GetAngle();
 
-		EdgeShape m_edgeShape;
-
-		Line m_line;
-
+			Line(m_line.begin.rotated(angle), m_line.end.rotated(angle))
+				.moveBy(ToVec2(body.lock()->getBodyPtr()->GetPosition())).draw(0.1, m_color);
+		}
 	};
 
 	class Box2DLineString : public Box2DShape
 	{
+	private:
+
+		b2ChainShape m_chainShape;
+
+		LineString m_lineString;
+
+		bool m_isClosedCurve = false;
+
 	public:
 
-		using ChainShape = b2ChainShape;
-
 		Box2DLineString()
-			: Box2DShape()
-		{
-			m_fixtureDef.shape = &m_chainShape;
-		}
+			: Box2DShape(&m_chainShape) {}
 
 		void draw(const Box2DBodyPtr& body) const override
 		{
 			const double angle = body.lock()->getBodyPtr()->GetAngle();
-			const Vec2 pos = B2Vec2ToVec2(body.lock()->getBodyPtr()->GetPosition());
+			const Vec2 pos = ToVec2(body.lock()->getBodyPtr()->GetPosition());
 
 			Array<Vec2> points;
 
@@ -321,10 +329,10 @@ namespace ham
 		{
 			Array<b2Vec2> points;
 
-			for (const auto& point : lineString.getArray())
+			for (const auto& point : lineString)
 			{
-				points.push_back(Vec2ToB2Vec2(point));
-			}			
+				points.push_back(ToB2Vec2(point));
+			}
 
 			m_lineString = lineString;
 
@@ -337,9 +345,9 @@ namespace ham
 		{
 			Array<b2Vec2> points;
 
-			for (const auto& point : lineString.getArray())
+			for (const auto& point : lineString)
 			{
-				points.push_back(Vec2ToB2Vec2(point));
+				points.push_back(ToB2Vec2(point));
 			}
 
 			m_lineString = lineString;
@@ -348,123 +356,83 @@ namespace ham
 
 			m_isClosedCurve = true;
 		}
-
-	private:
-		
-
-
-		ChainShape m_chainShape;
-
-		LineString m_lineString;
-
-		bool m_isClosedCurve = false;
-
 	};
 
 	class Box2DRect : public Box2DShape
 	{
+	private:
+
+		b2PolygonShape m_polygonShape;
+
+		float32 width;
+
+		float32 height;
+
 	public:
 
-		using PolygonShape = b2PolygonShape;
-
 		Box2DRect()
-			: Box2DShape()
-		{
-			m_fixtureDef.shape = &m_polygonShape;
-		}
+			: Box2DShape(&m_polygonShape) {}
 
 		void draw(const Box2DBodyPtr& body) const override
 		{
 			const double angle = body.lock()->getBodyPtr()->GetAngle();
-			const Vec2 pos = B2Vec2ToVec2(body.lock()->getBodyPtr()->GetPosition());
+
+			const Vec2 pos = ToVec2(body.lock()->getBodyPtr()->GetPosition());
 
 			RectF(width, height).setCenter(pos).rotated(angle).draw(m_color);
 		}
-
-		//void setSize(const Vec2& size)
-		//{
-		//	width = static_cast<float32>(size.x);
-
-		//	height = static_cast<float32>(size.y);
-
-		//	m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f);			
-		//}
-
-		//void setPosition(const Vec2& center)
-		//{
-		//	//m_polygonShape
-		//}
 
 		void setRect(const RectF& rect)
 		{
 			width = static_cast<float32>(rect.w);
 			height = static_cast<float32>(rect.h);
-			m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f, Vec2ToB2Vec2(rect.center), 0.0f);
+			m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f, ToB2Vec2(rect.center), 0.0f);
 		}
-
-	private:
-
-		PolygonShape m_polygonShape;
-
-		float32 width = 100.0f;
-
-		float32 height = 20.0f;
-
 	};
 
 	class Box2DCircle : public Box2DShape
 	{
+	private:
+
+		b2CircleShape m_circleShape;
+
 	public:
 
-		using CircleShape = b2CircleShape;
-
 		Box2DCircle()
-			: Box2DShape()
-		{
-			m_fixtureDef.shape = &m_circleShape;
-		}
+			: Box2DShape(&m_circleShape) {}
 
 		void draw(const Box2DBodyPtr& body) const override
 		{
 			const double angle = body.lock()->getBodyPtr()->GetAngle();
-			const Vec2 pos = B2Vec2ToVec2(body.lock()->getBodyPtr()->GetPosition());
 
-			Circle(pos, m_circle.r).draw(m_color);
+			const Vec2 pos = ToVec2(body.lock()->getBodyPtr()->GetPosition());
+
+			Circle(pos, m_circleShape.m_radius).draw(m_color);
 		}
 
 		void setRadius(double radius)
-		{			
+		{
 			m_circleShape.m_radius = static_cast<float32>(radius);
-
-			m_circle.r = radius;
 		}
 
 		void setPosition(const Vec2& pos)
 		{
-			m_circleShape.m_p = Vec2ToB2Vec2(pos);
-
-			m_circle.center = pos;
+			m_circleShape.m_p = ToB2Vec2(pos);
 		}
-
-	private:
-
-		Circle m_circle;
-
-		CircleShape m_circleShape;
-
 	};
 
 	class Box2DPolygon : public Box2DShape
 	{
+	private:
+
+		b2PolygonShape m_polygonShape;
+
+		Polygon m_polygon;
+
 	public:
 
-		using PolygonShape = b2PolygonShape;
-
 		Box2DPolygon()
-			: Box2DShape()
-		{
-			m_fixtureDef.shape = &m_polygonShape;
-		}
+			: Box2DShape(&m_polygonShape) {}
 
 		void setPolygon(const Polygon& polygon)
 		{
@@ -472,7 +440,7 @@ namespace ham
 
 			for (const auto& point : polygon.outer())
 			{
-				vertices.push_back(Vec2ToB2Vec2(point));
+				vertices.push_back(ToB2Vec2(point));
 			}
 
 			m_polygonShape.Set(vertices.data(), vertices.size());
@@ -483,17 +451,44 @@ namespace ham
 		void draw(const Box2DBodyPtr& body) const override
 		{
 			const double angle = body.lock()->getBodyPtr()->GetAngle();
-			const Vec2 pos = B2Vec2ToVec2(body.lock()->getBodyPtr()->GetPosition());
+
+			const Vec2 pos = ToVec2(body.lock()->getBodyPtr()->GetPosition());
 
 			m_polygon.rotated(angle).movedBy(pos).draw(m_color);
 		}
+	};
 
-	private:
+	struct Box2DWheelJointStatus
+	{
+		Vec2 localAnchorA;
 
-		PolygonShape m_polygonShape;
+		Vec2 localAnchorB;
 
-		Polygon m_polygon;
+		Vec2 localAxisA;
 
+		double frequencyHz;
+
+		double dampingRatio;
+
+		double motorSpeed;
+
+		double maxMotorTorque;
+
+		constexpr Box2DWheelJointStatus(const Vec2& _localAnchorA = Vec2::Zero
+			, const Vec2& _localAnchorB = Vec2::Zero
+			, const Vec2& _localAxisA = Vec2(1.0, 0.0)
+			, double _frequencyHz = 2.0
+			, double _dampingRatio = 0.7
+			, double _motorSpeed = 0.0
+			, double _maxMotorTorque = 0.0)
+			: localAnchorA(_localAnchorA)
+			, localAnchorB(_localAnchorB)
+			, localAxisA(_localAxisA)
+			, frequencyHz(_frequencyHz)
+			, dampingRatio(_dampingRatio)
+			, motorSpeed(_motorSpeed)
+			, maxMotorTorque(_maxMotorTorque)
+		{}
 	};
 
 	class Box2DInitialWheelJointStatus
@@ -530,7 +525,7 @@ namespace ham
 
 		void init(const Box2DBodyPtr& bodyA, const Box2DBodyPtr& bodyB, const Vec2& anchor, const Vec2& axis)
 		{
-			m_wheelJointDef.Initialize(bodyA->getBodyPtr(), bodyB->getBodyPtr(), Vec2ToB2Vec2(anchor), Vec2ToB2Vec2(axis));
+			m_wheelJointDef.Initialize(bodyA->getBodyPtr(), bodyB->getBodyPtr(), ToB2Vec2(anchor), ToB2Vec2(axis));
 		}
 
 		const WheelJointDef& getWheelJointDefinition() const
@@ -561,7 +556,7 @@ namespace ham
 
 		virtual ~Box2DWheelJoint()
 		{
-			if(!m_world.expired())
+			if (!m_world.expired())
 				m_world.lock()->DestroyJoint(m_wheelJoint);
 		}
 
@@ -579,7 +574,7 @@ namespace ham
 		{
 			m_wheelJoint = static_cast<WheelJointPtr>(m_world.lock()->CreateJoint(&m_initialWheelJointStatus->getWheelJointDefinition()));
 		}
-		
+
 	private:
 
 		WorldWeakPtr m_world;
@@ -599,7 +594,7 @@ namespace ham
 
 		void init(const Box2DBodyPtr& bodyA, const Box2DBodyPtr& bodyB, const Vec2& anchor)
 		{
-			m_revoluteJointDef.Initialize(bodyA->getBodyPtr(), bodyB->getBodyPtr(), Vec2ToB2Vec2(anchor));
+			m_revoluteJointDef.Initialize(bodyA->getBodyPtr(), bodyB->getBodyPtr(), ToB2Vec2(anchor));
 		}
 
 		void setBodyA(const Box2DBodyPtr& bodyA)
@@ -629,12 +624,12 @@ namespace ham
 
 		void setLocalAnchorA(const Vec2& anchor)
 		{
-			m_revoluteJointDef.localAnchorA = Vec2ToB2Vec2(anchor);
+			m_revoluteJointDef.localAnchorA = ToB2Vec2(anchor);
 		}
 
 		void setLocalAnchorB(const Vec2& anchor)
 		{
-			m_revoluteJointDef.localAnchorB = Vec2ToB2Vec2(anchor);
+			m_revoluteJointDef.localAnchorB = ToB2Vec2(anchor);
 		}
 
 		void setEnableMotoor(bool flag)
@@ -712,7 +707,7 @@ namespace ham
 		RevoluteJointPtr m_revoluteJoint;
 
 	};
-	
+
 	class Box2DInitialDistanceJointStatus
 	{
 	public:
@@ -722,7 +717,7 @@ namespace ham
 
 		void init(const Box2DBodyPtr& bodyA, const Box2DBodyPtr& bodyB, const Vec2& anchorA, const Vec2& anchorB)
 		{
-			m_distanceJointDef.Initialize(bodyA->getBodyPtr(), bodyB->getBodyPtr(), Vec2ToB2Vec2(anchorA), Vec2ToB2Vec2(anchorB));
+			m_distanceJointDef.Initialize(bodyA->getBodyPtr(), bodyB->getBodyPtr(), ToB2Vec2(anchorA), ToB2Vec2(anchorB));
 		}
 
 		void setDampingRatio(double dampingRatio)
@@ -776,7 +771,7 @@ namespace ham
 
 		void draw() const
 		{
-			Line(B2Vec2ToVec2(m_distanceJoint->GetAnchorA()), B2Vec2ToVec2(m_distanceJoint->GetAnchorB())).draw(0.1);
+			Line(ToVec2(m_distanceJoint->GetAnchorA()), ToVec2(m_distanceJoint->GetAnchorB())).draw(0.1);
 		}
 
 	private:
@@ -788,53 +783,112 @@ namespace ham
 		DistanceJointPtr m_distanceJoint;
 	};
 
-	class Box2DManager
+	class Box2DInitialPrismaticJointStatus
 	{
 	public:
 
-		using WorldPtr = std::shared_ptr<b2World>;
-
-		Box2DManager(const Vec2& gravity = Vec2(0.0, -9.8), int32 velocityIterations = 6, int32 positionIterations = 2)
-			: m_velocityIterations(velocityIterations)
-			, m_positionIterations(positionIterations)
+		const b2PrismaticJointDef& getPrismaticJointDef() const
 		{
-			m_world = std::make_shared<b2World>(Vec2ToB2Vec2(gravity));
+			return m_prismaticJointDef;
 		}
 
-		virtual ~Box2DManager()
+	private:
+		
+
+		b2PrismaticJointDef m_prismaticJointDef;
+		
+
+	};
+
+	class Box2DPrismaticJoint
+	{
+	public:
+
+		Box2DPrismaticJoint(const std::weak_ptr<b2World>& world)
+			: m_world(world)
 		{
 
 		}
 
-		void update(double timeStep = 1.0/60.0)
+		virtual ~Box2DPrismaticJoint()
 		{
-			m_world->Step(static_cast<float32>(timeStep), m_velocityIterations, m_positionIterations);
+
 		}
 
-		const WorldPtr& getWorld() const
+		void init()
 		{
-			return m_world;
+			m_prismaticJoint = static_cast<b2PrismaticJoint*>(m_world.lock()->CreateJoint(&m_initialDistanceJointDef->getPrismaticJointDef()));
 		}
 
-		std::shared_ptr<Box2DBody> createBody()
+		void draw()
 		{
-			return std::make_shared<Box2DBody>(m_world);
+
 		}
 
 	private:
 
-		WorldPtr m_world;
+		std::shared_ptr<Box2DInitialPrismaticJointStatus> m_initialDistanceJointDef;
+
+		std::weak_ptr<b2World> m_world;
+
+		b2PrismaticJoint* m_prismaticJoint;
+	};
+
+	class Box2DManager
+	{
+	private:
+
+		std::shared_ptr<b2World> m_world;
 
 		int32 m_velocityIterations = 6;
 
 		int32 m_positionIterations = 2;
-	};
 
+	public:
+
+		Box2DManager(const Vec2& gravity = Vec2(0.0, -9.8), int32 velocityIterations = 6, int32 positionIterations = 2)
+			: m_world(std::make_shared<b2World>(ToB2Vec2(gravity)))
+			, m_velocityIterations(velocityIterations)
+			, m_positionIterations(positionIterations) {}
+
+		virtual ~Box2DManager() {}
+
+		void update(const double timeStep = 1.0 / 60.0)
+		{
+			m_world->Step(static_cast<float32>(timeStep), m_velocityIterations, m_positionIterations);
+		}
+
+		std::shared_ptr<Box2DBody> createBody() const
+		{
+			return std::make_shared<Box2DBody>(m_world);
+		}
+
+		std::shared_ptr<Box2DWheelJoint> createWheelJoint() const
+		{
+			return std::make_shared<Box2DWheelJoint>(m_world);
+		}
+
+		std::shared_ptr<Box2DDistanceJoint> createDistanceJoint() const
+		{
+			return std::make_shared<Box2DDistanceJoint>(m_world);
+		}
+	};
 
 	void Box2DBody::setShape(const Line& line, const Box2DStatus& status)
 	{
 		auto shape = std::make_shared<Box2DLine>();
 		shape->setLine(line);
+		shape->setDensity(status.density);
+		shape->setRestitution(status.restitution);
+		shape->setFriction(status.friction);
+
+		m_fixtureDefinitions.push_back(shape);
+	}
+
+	void Box2DBody::setShape(const LineString& line, const Box2DStatus& status)
+	{
+		auto shape = std::make_shared<Box2DLineString>();
+		shape->setLineStringOpen(line);
 		shape->setDensity(status.density);
 		shape->setRestitution(status.restitution);
 		shape->setFriction(status.friction);
@@ -864,62 +918,27 @@ namespace ham
 
 		m_fixtureDefinitions.push_back(shape);
 	}
-}
 
-
-/*
-void Main()
-{
-	Window::SetStyle(WindowStyle::Sizeable);
-	Box2DManager box2DManager;
-
-	auto ground = box2DManager.createBody();
-	ground->setShape(Line(-45, 2, -35, 0), Box2DStatus(0, 0.1, 0.9));
-	ground->setShape(Line(-100, 0, 100, -20));
-	ground->init(b2_staticBody);
-
-	Array<PBody> objects;
-
-	for (auto i : step(1000))
+	void Box2DBody::setShape(const Polygon& polygon, const Box2DStatus& status)
 	{
-		auto ball = box2DManager.createBody();
-		ball->setShape(RectF(1, 0.5).setCenter(0, 0));
-		ball->init(b2_dynamicBody, Vec2(-40, 5 + i));
-		objects.push_back(ball);
-	}
+		Array<Triangle> triangles;
 
-	CameraManager2D camera;
-	auto cameraController = std::make_shared<ExampleCameraControllerForBox2D>();
-	camera.setCameraController(cameraController);
-	camera.getCameraController()->setPos(Vec2(0.0, 0.0));
-	camera.getCameraController()->setScale(17.0);
-	camera.init();
+		triangles.reserve(polygon.num_triangles);
 
-	SizableWindowmanager2D sizable;
-
-	while (System::Update())
-	{
-		//cameraController->setTargetPos(B2Vec2ToVec2(car->getBodyPtr()->GetPosition()));
-		box2DManager.update();
-
-		camera.update();
-
-		ClearPrint();
-		camera.draw();
-
-		sizable.begin();
-		camera.begin(); 
-
-		ground->draw();
-		//ball->draw();
-
-		for (const auto& object : objects)
+		for (const auto& triangle : polygon.triangles())
 		{
-			object->draw();
+			triangles.push_back(triangle);
 		}
 
-		camera.end();
-		sizable.end();
+		for (const auto& triangle : triangles)
+		{
+			auto shape = std::make_shared<Box2DPolygon>();
+			shape->setPolygon(Polygon{ triangle.p, 3 });
+			shape->setDensity(status.density);
+			shape->setRestitution(status.restitution);
+			shape->setFriction(status.friction);
+
+			m_fixtureDefinitions.push_back(shape);
+		}
 	}
 }
-*/
