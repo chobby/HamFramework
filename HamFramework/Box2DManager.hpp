@@ -395,9 +395,7 @@ namespace ham
 
 		b2PolygonShape m_polygonShape;
 
-		float32 width;
-
-		float32 height;
+		RectF m_rect;
 
 	public:
 
@@ -406,18 +404,21 @@ namespace ham
 
 		void draw(const Box2DBodyPtr& body) const override
 		{
-			const double angle = body.lock()->getBodyPtr()->GetAngle();
+			const double angle = body.lock()->getAngle();
 
-			const Vec2 pos = ToVec2(body.lock()->getBodyPtr()->GetPosition());
+			const Vec2 pos = body.lock()->getPos();
 
-			RectF(width, height).setCenter(pos).rotated(angle).draw(m_color);
+			RectF(m_rect.w, m_rect.h).setCenter(pos + m_rect.center.rotated(angle)).rotated(angle).draw(m_color);
 		}
 
 		void setRect(const RectF& rect)
 		{
-			width = static_cast<float32>(rect.w);
-			height = static_cast<float32>(rect.h);
-			m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f, ToB2Vec2(rect.center), 0.0f);
+			m_rect = rect;
+			const auto width = static_cast<float32>(rect.w);
+			const auto height = static_cast<float32>(rect.h);
+			const auto center = ToB2Vec2(rect.center);
+			
+			m_polygonShape.SetAsBox(width * 0.5f, height * 0.5f, center, 0.0f);
 		}
 	};
 
@@ -427,6 +428,8 @@ namespace ham
 
 		b2CircleShape m_circleShape;
 
+		Circle m_circle;
+
 	public:
 
 		Box2DCircle()
@@ -434,21 +437,19 @@ namespace ham
 
 		void draw(const Box2DBodyPtr& body) const override
 		{
-			const double angle = body.lock()->getBodyPtr()->GetAngle();
+			const double angle = body.lock()->getAngle();
 
-			const Vec2 pos = ToVec2(body.lock()->getBodyPtr()->GetPosition());
+			const Vec2 pos = body.lock()->getPos();
 
-			Circle(pos, m_circleShape.m_radius).draw(m_color);
+			Circle(pos + m_circle.center.rotated(angle), m_circle.r).draw(m_color);
+			Line(pos + m_circle.center.rotated(angle), pos + m_circle.center.rotated(angle) + Vec2(m_circle.r, 0.0).rotated(angle)).draw(0.1, Palette::Gray);
 		}
 
-		void setRadius(double radius)
+		void setCircle(const Circle& circle)
 		{
-			m_circleShape.m_radius = static_cast<float32>(radius);
-		}
-
-		void setPosition(const Vec2& pos)
-		{
-			m_circleShape.m_p = ToB2Vec2(pos);
+			m_circleShape.m_radius = static_cast<float32>(circle.r);
+			m_circleShape.m_p = ToB2Vec2(circle.center);
+			m_circle = circle;
 		}
 	};
 
@@ -986,8 +987,7 @@ namespace ham
 	void Box2DBody::setShape(const Circle& circle, const Box2DStatus& status, const Box2DFilter& filter)
 	{
 		auto shape = std::make_shared<Box2DCircle>();
-		shape->setRadius(circle.r);
-		shape->setPosition(circle.center);
+		shape->setCircle(circle);
 		shape->setDensity(status.density);
 		shape->setRestitution(status.restitution);
 		shape->setFriction(status.friction);
