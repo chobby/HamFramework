@@ -28,6 +28,19 @@ namespace ham
 	class Box2DBody;
 	using PBody = std::shared_ptr<Box2DBody>;
 
+	struct Box2DFilter
+	{
+		uint16 categoryBits = 0x0001;
+		uint16 maskBits = 0xFFFF;
+		uint16 groupIndex = 0;
+
+		constexpr Box2DFilter(uint16 _categoryBits = 0x0001, uint16 _maskBits = 0xFFFF, uint16 _groupIndex = 0)
+			: categoryBits(_categoryBits)
+			, maskBits(_maskBits)
+			, groupIndex(_groupIndex)
+		{}
+	};
+
 	struct Box2DStatus
 	{
 		double density = 1.0;
@@ -35,7 +48,6 @@ namespace ham
 		double restitution = 0.0;
 
 		double friction = 0.2;
-
 
 		constexpr Box2DStatus(double _density = 1.0, double _restitution = 0.1, double _friction = 0.2)
 			: density(_density)
@@ -73,6 +85,13 @@ namespace ham
 		void setRestitution(double restitution)
 		{
 			m_fixtureDef.restitution = static_cast<float32>(restitution);
+		}
+
+		void setFilter(const Box2DFilter& filter)
+		{
+			m_fixtureDef.filter.categoryBits = filter.categoryBits;
+			m_fixtureDef.filter.maskBits = filter.maskBits;
+			m_fixtureDef.filter.groupIndex = filter.groupIndex;
 		}
 
 		const b2FixtureDef& getFixtureDef() const
@@ -190,15 +209,15 @@ namespace ham
 			m_fixtureDefinitions.push_back(shape);
 		}
 
-		void setShape(const Line& line, const Box2DStatus& status = Box2DStatus());
+		void setShape(const Line& line, const Box2DStatus& status = Box2DStatus(), const Box2DFilter& filter = Box2DFilter());
 
-		void setShape(const LineString& line, const Box2DStatus& status = Box2DStatus());
+		void setShape(const LineString& line, const Box2DStatus& status = Box2DStatus(), const Box2DFilter& filter = Box2DFilter());
 
-		void setShape(const RectF& rect, const Box2DStatus& status = Box2DStatus());
+		void setShape(const RectF& rect, const Box2DStatus& status = Box2DStatus(), const Box2DFilter& filter = Box2DFilter());
 
-		void setShape(const Circle& circle, const Box2DStatus& status = Box2DStatus());
+		void setShape(const Circle& circle, const Box2DStatus& status = Box2DStatus(), const Box2DFilter& filter = Box2DFilter());
 
-		void setShape(const Polygon& polygon, const Box2DStatus& status = Box2DStatus());
+		void setShape(const Polygon& polygon, const Box2DStatus& status = Box2DStatus(), const Box2DFilter& filter = Box2DFilter());
 
 		void setPos(const double x, const double y)
 		{
@@ -928,40 +947,43 @@ namespace ham
 		}
 	};
 
-	void Box2DBody::setShape(const Line& line, const Box2DStatus& status)
+	void Box2DBody::setShape(const Line& line, const Box2DStatus& status, const Box2DFilter& filter)
 	{
 		auto shape = std::make_shared<Box2DLine>();
 		shape->setLine(line);
 		shape->setDensity(status.density);
 		shape->setRestitution(status.restitution);
 		shape->setFriction(status.friction);
+		shape->setFilter(filter);
 
 		m_fixtureDefinitions.push_back(shape);
 	}
 
-	void Box2DBody::setShape(const LineString& line, const Box2DStatus& status)
+	void Box2DBody::setShape(const LineString& line, const Box2DStatus& status, const Box2DFilter& filter)
 	{
 		auto shape = std::make_shared<Box2DLineString>();
 		shape->setLineStringOpen(line);
 		shape->setDensity(status.density);
 		shape->setRestitution(status.restitution);
 		shape->setFriction(status.friction);
+		shape->setFilter(filter);
 
 		m_fixtureDefinitions.push_back(shape);
 	}
 
-	void Box2DBody::setShape(const RectF& rect, const Box2DStatus& status)
+	void Box2DBody::setShape(const RectF& rect, const Box2DStatus& status, const Box2DFilter& filter)
 	{
 		auto shape = std::make_shared<Box2DRect>();
 		shape->setRect(rect);
 		shape->setDensity(status.density);
 		shape->setRestitution(status.restitution);
 		shape->setFriction(status.friction);
+		shape->setFilter(filter);
 
 		m_fixtureDefinitions.push_back(shape);
 	}
 
-	void Box2DBody::setShape(const Circle& circle, const Box2DStatus& status)
+	void Box2DBody::setShape(const Circle& circle, const Box2DStatus& status, const Box2DFilter& filter)
 	{
 		auto shape = std::make_shared<Box2DCircle>();
 		shape->setRadius(circle.r);
@@ -969,11 +991,12 @@ namespace ham
 		shape->setDensity(status.density);
 		shape->setRestitution(status.restitution);
 		shape->setFriction(status.friction);
+		shape->setFilter(filter);
 
 		m_fixtureDefinitions.push_back(shape);
 	}
 
-	void Box2DBody::setShape(const Polygon& polygon, const Box2DStatus& status)
+	void Box2DBody::setShape(const Polygon& polygon, const Box2DStatus& status, const Box2DFilter& filter)
 	{
 		Array<Triangle> triangles;
 
@@ -991,8 +1014,20 @@ namespace ham
 			shape->setDensity(status.density);
 			shape->setRestitution(status.restitution);
 			shape->setFriction(status.friction);
+			shape->setFilter(filter);
 
 			m_fixtureDefinitions.push_back(shape);
 		}
+	}
+
+	//3D drawing utility
+	void DrawRect3D(const Vec2& size, const std::shared_ptr<Box2DBody>& body, double depth)
+	{
+		Box(Vec3::Zero, Vec3(size.x, depth, size.y)).asMesh().rotated(0.0, body->getAngle(), 0.0).rotated(HalfPi, 0.0, 0.0).translated(Vec3(body->getPos(), 0.0)).draw();
+	}
+
+	void DrawCircle3D(double radius, const std::shared_ptr<Box2DBody>& body, double depth)
+	{
+		Cylinder(radius, depth).asMesh().rotated(0.0, body->getAngle(), 0.0).rotated(HalfPi, 0.0, 0.0).translated(Vec3(body->getPos(), 0.0)).draw();
 	}
 }
