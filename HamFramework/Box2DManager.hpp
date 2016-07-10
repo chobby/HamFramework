@@ -274,6 +274,16 @@ namespace ham
 			return static_cast<double>(m_body->GetAngle());
 		}
 
+		double getMass() const
+		{
+			return m_body->GetMass();
+		}
+
+		double getInertia() const
+		{
+			return m_body->GetInertia();
+		}
+
 	protected:
 
 		virtual void createBody()
@@ -864,7 +874,8 @@ namespace ham
 
 		virtual ~Box2DPrismaticJoint()
 		{
-
+			if (!m_world.expired())
+				m_world.lock()->DestroyJoint(m_prismaticJoint);
 		}
 
 		void setInitialPrismaticJointStatus(const std::shared_ptr<Box2DInitialPrismaticJointStatus>& initialPrismaticJointStatus)
@@ -896,6 +907,89 @@ namespace ham
 		std::weak_ptr<b2World> m_world;
 
 		b2PrismaticJoint* m_prismaticJoint;
+	};
+
+	class Box2DInitialMouseJointStatus
+	{
+	public:
+
+		void init(const std::shared_ptr<Box2DBody>& bodyA, const std::shared_ptr<Box2DBody>& bodyB, const Vec2& target)
+		{
+			m_mouseJointDef.bodyA = bodyA->getBodyPtr();
+
+			m_mouseJointDef.bodyB = bodyB->getBodyPtr();
+
+			m_mouseJointDef.target = ToB2Vec2(target);
+		
+			bodyB->setAwake(true);
+		}
+
+		void setMaxForce(double maxForce)
+		{
+			m_mouseJointDef.maxForce = static_cast<float32>(maxForce);
+		}
+
+		const b2MouseJointDef& getMouseJointDef() const
+		{
+			return m_mouseJointDef;
+		}
+
+	private:
+
+		b2MouseJointDef m_mouseJointDef;
+
+	};
+
+	class Box2DMouseJoint
+	{
+	public:
+
+		Box2DMouseJoint(const std::weak_ptr<b2World>& world)
+			: m_world(world)
+		{
+
+		}
+
+		virtual ~Box2DMouseJoint()
+		{
+			if (!m_world.expired())
+				m_world.lock()->DestroyJoint(m_mouseJoint);
+		}
+
+		void setInitialMouseJointStatus(const std::shared_ptr<Box2DInitialMouseJointStatus>& initialMouseJointStatus)
+		{
+			m_initialMouseJointDef = initialMouseJointStatus;
+		}
+
+		void init()
+		{
+			m_mouseJoint = static_cast<b2MouseJoint*>(m_world.lock()->CreateJoint(&m_initialMouseJointDef->getMouseJointDef()));
+		}
+
+		void init(const std::shared_ptr<Box2DInitialMouseJointStatus>& initialMouseJointStatus)
+		{
+			setInitialMouseJointStatus(initialMouseJointStatus);
+
+			init();
+		}
+
+		void draw()
+		{
+			Line(ToVec2(m_mouseJoint->GetAnchorA()), ToVec2(m_mouseJoint->GetAnchorB())).draw();
+		}
+
+		void setTarget(const Vec2& target)
+		{
+			m_mouseJoint->SetTarget(ToB2Vec2(target));
+		}
+
+	private:
+
+		std::shared_ptr<Box2DInitialMouseJointStatus> m_initialMouseJointDef;
+
+		std::weak_ptr<b2World> m_world;
+
+		b2MouseJoint* m_mouseJoint;
 	};
 
 	class Box2DManager
@@ -945,6 +1039,11 @@ namespace ham
 		std::shared_ptr<Box2DPrismaticJoint> createPrismaticJoint() const
 		{
 			return std::make_shared<Box2DPrismaticJoint>(m_world);
+		}
+
+		std::shared_ptr<Box2DMouseJoint> createMouseJoint() const
+		{
+			return std::make_shared<Box2DMouseJoint>(m_world);
 		}
 	};
 
