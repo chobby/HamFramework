@@ -292,7 +292,9 @@ namespace ham
 
 			for (const auto& fixtureDef : m_fixtureDefinitions)
 			{
-				m_body->CreateFixture(&fixtureDef->getFixtureDef());
+				auto fixture = m_body->CreateFixture(&fixtureDef->getFixtureDef());
+				fixture->SetUserData(static_cast<void*>(this));
+				m_fixtures.push_back(fixture);
 			}
 		}
 
@@ -305,6 +307,8 @@ namespace ham
 		InitialBodyStatusPtr m_initialBodyStatus;
 
 		Array<ShapePtr> m_fixtureDefinitions;
+
+		Array<b2Fixture*> m_fixtures;
 	};
 
 	class Box2DLine : public Box2DShape
@@ -924,6 +928,17 @@ namespace ham
 			bodyB->setAwake(true);
 		}
 
+		void init(const std::shared_ptr<Box2DBody>& bodyA, Box2DBody* bodyB, const Vec2& target)
+		{
+			m_mouseJointDef.bodyA = bodyA->getBodyPtr();
+
+			m_mouseJointDef.bodyB = bodyB->getBodyPtr();
+
+			m_mouseJointDef.target = ToB2Vec2(target);
+
+			bodyB->setAwake(true);
+		}
+
 		void setMaxForce(double maxForce)
 		{
 			m_mouseJointDef.maxForce = static_cast<float32>(maxForce);
@@ -992,6 +1007,35 @@ namespace ham
 		b2MouseJoint* m_mouseJoint;
 	};
 
+	class Box2DQueryCallback : public b2QueryCallback
+	{
+	public:
+
+		virtual ~Box2DQueryCallback()
+		{
+
+		}
+
+		virtual bool ReportFixture(b2Fixture* fixture) override
+		{
+			auto bodyPtr = static_cast<Box2DBody*>(fixture->GetUserData());
+
+			bodies.push_back(bodyPtr);
+
+			return true;
+		}
+
+		const Array<Box2DBody*>& getBodies() const
+		{
+			return bodies;
+		}
+
+	protected:
+
+		Array<Box2DBody*> bodies;
+
+	};
+
 	class Box2DManager
 	{
 	private:
@@ -1045,6 +1089,36 @@ namespace ham
 		{
 			return std::make_shared<Box2DMouseJoint>(m_world);
 		}
+
+		Array<Box2DBody*> getBody(const Vec2& pos) const
+		{
+			RectF area = RectF(0.002, 0.002).setCenter(pos);
+
+			return getBody(area);
+		}
+
+		Array<Box2DBody*> getBody(const RectF& area) const
+		{
+			auto aabb = createAABB(area);
+
+			Box2DQueryCallback queryCallback;
+
+			m_world->QueryAABB(&queryCallback, aabb);
+
+			return queryCallback.getBodies();
+		}
+		
+		b2AABB createAABB(const RectF& area) const
+		{
+			b2AABB aabb;
+
+			//Rect‚Ìbr‚Ì‚¸‚ê‚É‚æ‚é
+			aabb.lowerBound = ToB2Vec2({ area.x, area.y });
+			aabb.upperBound = ToB2Vec2({ area.x + area.w, area.y + area.h });
+
+			return aabb;
+		}
+		
 	};
 
 	void Box2DBody::setShape(const Line& line, const Box2DStatus& status, const Box2DFilter& filter)
